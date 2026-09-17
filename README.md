@@ -96,9 +96,9 @@ Two more things the experiments show.
 pip install -r requirements.txt
 ```
 
-Only `numpy`, `scipy` and `scikit-learn` are needed to run the method.
-[TSB-AD](https://github.com/TheDatumOrg/TSB-AD) is needed only to reproduce
-the benchmark numbers, since it supplies both the detectors and VUS-PR.
+Only `numpy`, `scipy` and `scikit-learn` are needed to run the method on your
+own detectors. Reproducing the benchmark numbers also needs TSB-AD, which the
+next section walks through.
 
 ## Try it in 10 seconds
 
@@ -135,23 +135,84 @@ alarm    = combined > pick_threshold(combined, labels, seen)
 
 ## Reproduce the paper
 
+### 1. Get the benchmark
+
+The numbers above come from [TSB-AD](https://github.com/TheDatumOrg/TSB-AD),
+which supplies the detectors, the curated series and the VUS-PR implementation.
+
 ```bash
-# 1. score every detector on every series, once (repeat per detector)
-python scripts/prepare_scores.py --tsb /path/to/TSB-AD \
-       --detector IForest --out scores_u
-
-# 2. the main comparison, which can be sharded across machines
-python scripts/run_main.py --scores scores_u --out out/main.json
-
-# 3. the temperature, chosen without reading the series it scores
-python scripts/select_temperature.py out/main.json
-
-# 4. the table
-python scripts/summarize.py out/main.json
+git clone https://github.com/TheDatumOrg/TSB-AD
+cd TSB-AD && pip install -e . && cd ..
 ```
 
-`run_main.py` writes after every series and skips what it already has, so an
-interrupted run resumes where it stopped.
+The series are hosted outside GitHub, so download and unpack them into the
+checkout.
+
+```bash
+# univariate, the collection the main table reads
+wget https://www.thedatum.org/datasets/TSB-AD-U.zip
+unzip TSB-AD-U.zip -d TSB-AD/Datasets/
+
+# multivariate, used in the appendix
+wget https://www.thedatum.org/datasets/TSB-AD-M.zip
+unzip TSB-AD-M.zip -d TSB-AD/Datasets/
+```
+
+`TSB-AD/Datasets/File_List/TSB-AD-U-Eva.csv` then lists the 350 univariate
+series of the evaluation split, which is the split we read. The 152 series of
+the table are what remains after the eligibility filter, i.e. a series needs a
+second event to evaluate on once the first is confirmed, a label that is not
+constant, and a confirmed event long enough to score.
+
+### 2. Score the detectors once
+
+```bash
+bash scripts/build_pool.sh TSB-AD scores_u
+```
+
+This runs the 18 statistical detectors of the first pool over every series and
+writes `scores_u/<series>__<detector>.npy`. It is the slow step, a few hours on
+one machine, and it only has to happen once. `prepare_scores.py` skips files it
+already wrote, so an interrupted run resumes.
+
+To reproduce the wider pools of the paper, run the same script with the deep
+detectors and foundation models, or add window-length variants of a detector
+with `--hp` and `--tag`.
+
+```bash
+python scripts/prepare_scores.py --tsb TSB-AD --detector PaAno_PAI \
+       --out scores_u --hp '{"win_size": 150}' --tag w150
+```
+
+### 3. Run the comparison
+
+```bash
+python scripts/run_main.py --scores scores_u --out out/main.json
+```
+
+Every row of the table is measured inside this one run, on the same confirmed
+event and the same hidden part. It writes after every series and skips what it
+already has, so it can be interrupted, and it can be sharded across machines
+with `--shard i --nshard n` into separate output files.
+
+### 4. Read the table
+
+```bash
+python scripts/select_temperature.py out/main.json   # the leave-one-out choice
+python scripts/summarize.py 'out/*.json'             # the table, with tests
+```
+
+`summarize.py` prints the rows of the table above, together with a Wilcoxon
+signed-rank test of each row against OneShot on the same series.
+
+### Multivariate
+
+The same four steps run on the multivariate collection.
+
+```bash
+bash scripts/build_pool.sh TSB-AD scores_m M
+python scripts/run_main.py --scores scores_m --out out/main_mv.json --min-det 5
+```
 
 ## Layout
 
@@ -162,7 +223,8 @@ oneshot/
 │   ├── data.py       reading a detector pool and finding its events
 │   └── metrics.py    VUS-PR, with average precision as a fallback
 ├── scripts/
-│   ├── prepare_scores.py       run TSB-AD detectors into score files
+│   ├── prepare_scores.py       run one TSB-AD detector into score files
+│   ├── build_pool.sh           run the whole statistical pool
 │   ├── run_main.py             the main comparison
 │   ├── select_temperature.py   leave-one-out over series
 │   └── summarize.py            the table, with signed-rank tests
