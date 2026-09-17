@@ -4,6 +4,9 @@
 
 **One confirmed anomaly is enough to weight a pool of anomaly detectors.**
 
+Code for *One Confirmed Anomaly Is Enough: Label-Efficient Detector Weighting
+for Time Series Anomaly Detection*, under double-blind review.
+
 [![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -180,4 +183,4 @@ window winner.
 
 MIT. See [LICENSE](LICENSE).
 
-*Code accompanying a paper under double-blind review. Author information is omitted on purpose.*
+*Author information is omitted while the paper is under review.*
