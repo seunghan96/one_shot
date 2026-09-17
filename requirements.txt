@@ -1,0 +1,8 @@
+numpy>=1.21
+scipy>=1.7
+scikit-learn>=1.0
+
+# Only needed to reproduce the benchmark numbers, i.e. to run the detectors of
+# TSB-AD and to read VUS-PR from its implementation.
+# pandas>=1.3
+# torch>=1.12
